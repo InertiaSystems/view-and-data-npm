@@ -140,7 +140,7 @@ the translation is successful.
       }
 
       //start the test
-      lmv.initialise().then(onInitialized, onError);
+      lmv.initialize().then(onInitialized, onError);
 ```
 
 ## Offline
