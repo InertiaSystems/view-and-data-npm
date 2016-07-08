@@ -36,6 +36,8 @@ module.exports = function(config) {
 
   var _token = null;
 
+  var _refreshTimeout = 0;
+
   ///////////////////////////////////////////////////////////////////
   //
   //
@@ -76,7 +78,7 @@ module.exports = function(config) {
 
       try {
 
-        resolve(JSON.parse(body));
+        resolve(body ? JSON.parse(body) : '')
       }
       catch(ex) {
 
@@ -99,11 +101,13 @@ module.exports = function(config) {
 
           _token = response.access_token;
 
-          setTimeout(function() {
+          clearTimeout(_refreshTimeout)
+
+          _refreshTimeout = setTimeout(function() {
 
             _refreshToken(arguments.callee);
 
-          }, (response.expires_in - 60) * 1000);
+          }, (response.expires_in * 0.7) * 1000);
 
           resolve();
         },
@@ -125,9 +129,10 @@ module.exports = function(config) {
   _self.getToken = function() {
 
     var params = {
-      client_secret: config.credentials.ConsumerSecret,
-      client_id: config.credentials.ConsumerKey,
-      grant_type: 'client_credentials'
+      client_secret: config.credentials.clientSecret,
+      client_id: config.credentials.clientId,
+      grant_type: 'client_credentials',
+      scope: config.scope.join(' ')
     };
 
     var promise = new Promise(function(resolve, reject) {
@@ -151,6 +156,15 @@ module.exports = function(config) {
   //
   //
   ///////////////////////////////////////////////////////////////////
+  _self.setToken = function(token) {
+
+    _token = token
+  }
+
+  ///////////////////////////////////////////////////////////////////
+  //
+  //
+  ///////////////////////////////////////////////////////////////////
   _self.initialize = function() {
 
     return _refreshToken();
@@ -168,7 +182,7 @@ module.exports = function(config) {
           url: config.endPoints.supported,
           headers: {
             'Authorization': 'Bearer ' + _token,
-            'Content-Type': 'application/json; charset=utf-8'
+            'Content-Type': 'application/json'
           }
         },
         function (error, res, body) {
@@ -192,7 +206,7 @@ module.exports = function(config) {
   // Response:
   //
   // "{
-  //      "bucketKey":"bucketKey",
+  //      "key":"bucketKey",
   //      "owner":"tAp1fqjjtcgqS4CKpCYDjAyNbKW4IVCC",
   //      "createDate":1404984496468,
   //      "permissions":[{
@@ -200,17 +214,33 @@ module.exports = function(config) {
   //          "access":"full"}],
   //      "policyKey":"persistent"
   //  }"
-  //
+  ///////////////////////////////////////////////////////////////////
+  // Use:
   // Create bucket
   //
   // bucketCreationData = {
   //      bucketKey : "bucketKey",
   //      servicesAllowed: {},
-  //      policyKey: "temporary/transient/persistent
+  //      policy: "temporary/transient/persistent"
   // }
   //
   // API:
   // POST /oss/{apiversion}/buckets
+  //
+  // Response:
+  //
+  // {
+  // "bucketKey": "sampletestbucketdanieldu12345",
+  // "bucketOwner": "mvMpJWBGyBuGpVycB77FFgP45T4dBycD",
+  // "createdDate": 1435633089537,
+  // "permissions": [
+  // {
+  // "authId": "mvMpJWBGyBuGpVycB77FFgP45T4dBycD",
+  // "access": "full"
+  // }
+  // ],
+  // "policyKey": "temporary"
+  // }
   ///////////////////////////////////////////////////////////////////
   _self.getBucket = function(
     bucketKey,
@@ -227,18 +257,24 @@ module.exports = function(config) {
           url: getBucketUrl,
           headers: {
             'Authorization': 'Bearer ' + _token,
-            'Content-Type': 'application/json; charset=utf-8'
+            'Content-Type': 'application/json'
           }
         },
         function (error, res, body) {
 
-          if(res.statusCode == 404 && createIfNotExists) {
+          if(res.statusCode == 200 || !createIfNotExists) {
+
+            _handleResponse(error, res, body,
+              resolve,
+              reject);
+          }
+          else {
 
             request.post({
                 url: config.endPoints.createBucket,
                 headers: {
                   'Authorization': 'Bearer ' + _token,
-                  'Content-Type': 'application/json; charset=utf-8'
+                  'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(bucketCreationData)
               },
@@ -249,78 +285,12 @@ module.exports = function(config) {
                   reject);
               });
           }
-          else {
-
-            _handleResponse(error, res, body,
-              resolve,
-              reject);
-          }
         });
     });
 
     return promise;
   }
-
-  ///////////////////////////////////////////////////////////////////
-  // Use:
-  // List buckets
-  //
-  // API:
-  // GET /oss/v2/buckets[?region={region}&limit={limit}&startAt={startAt}]
-  //
-  // Response:
-  //
-  // "{
-  //      "bucketKey":"bucketKey",
-  //      "owner":"tAp1fqjjtcgqS4CKpCYDjAyNbKW4IVCC",
-  //      "createDate":1404984496468,
-  //      "permissions":[{
-  //          "serviceId":"tAp1fqjjtcgqS4CKpCYDjAyNbKW4IVCC",
-  //          "access":"full"}],
-  //      "policyKey":"persistent"
-  //  }"
-  //
-  // Create bucket
-  //
-  // bucketCreationData = {
-  //      bucketKey : "bucketKey",
-  //      servicesAllowed: {},
-  //      policyKey: "temporary/transient/persistent
-  // }
-  //
-  // API:
-  // POST /oss/{apiversion}/buckets
-  ///////////////////////////////////////////////////////////////////
-  _self.listBuckets = function(queryOpts) {
-
-    var promise = new Promise(function(resolve, reject) {
-
-      var query = queryOpts || 'limit=100';
-
-      var listBucketsUrl = util.format(
-        config.endPoints.listBuckets,
-        query);
-
-      console.log(listBucketsUrl)
-
-      request.get({
-          url: listBucketsUrl,
-          headers: {
-            'Authorization': 'Bearer ' + _token,
-            'Content-Type': 'application/json; charset=utf-8'
-          }
-        },
-        function (error, res, body) {
-
-          _handleResponse(error, res, body,
-            resolve,
-            reject);
-        });
-    });
-
-    return promise;
-  }
-
+  
   ///////////////////////////////////////////////////////////////////////////
   // Use:
   // Upload a file to bucket
@@ -330,16 +300,16 @@ module.exports = function(config) {
   //
   // Response:
   //
-  //  v2
-  //  {
-  //    "bucketKey": "my-bucket",
-  //    "objectId": "urn:adsk.objects:os.object:my-bucket/filename.ext",
-  //    "objectKey": "filename.ext",
-  //    "sha1": "28f3e01b0050fbc8a619b68b229947f18ebe94ee",
-  //    "size": 945973,
-  //    "contentType": "application/json",
-  //    "location": "https://developer.api.autodesk.com/oss/v2/buckets/my-bucket/objects/filename.ext"
-  // }
+  // "{   "bucket-key" : "adn-10.07.2014-11.28.15",
+  //      "file": file,
+  //      "objects" : [ {
+  //          "location" : "baseUrl/oss/v1/buckets/bucketKey/objects/file.name",
+  //          "size" : 1493911,
+  //          "key" : "file.name",
+  //          "id" : "urn:adsk.objects:os.object:bucketKey/file.name",
+  //          "sha-1" : "ba824b22a6df9d0fc30943ffcf8129e2b9de80f6",
+  //          "content-type" : "application/stream"  } ]
+  //  }"
   ///////////////////////////////////////////////////////////////////////////
   _self.upload = function(filename, bucketKey, objectKey) {
     
@@ -377,6 +347,18 @@ module.exports = function(config) {
   // API:
   // PUT /oss/{apiversion}/buckets/{bucketkey}/objects/{objectkey}/resumable
   //
+  // Response:
+  //
+  // "{   "bucket-key" : "adn-10.07.2014-11.28.15",
+  //      "file": file,
+  //      "objects" : [ {
+  //          "location" : "baseUrl/oss/v1/buckets/bucketKey/objects/file.name",
+  //          "size" : 1493911,
+  //          "key" : "file.name",
+  //          "id" : "urn:adsk.objects:os.object:bucketKey/file.name",
+  //          "sha-1" : "ba824b22a6df9d0fc30943ffcf8129e2b9de80f6",
+  //          "content-type" : "application/stream"  } ]
+  //  }"
   ///////////////////////////////////////////////////////////////////////////
   _self.resumableUpload = function(filename, bucketKey, objectKey) {
 
@@ -431,7 +413,7 @@ module.exports = function(config) {
                 function (error, res, body) {
 
                   if(res.statusCode == 200 || res.statusCode == 202){
-                    callback (null, JSON.parse(body));
+                    callback (null, body ? JSON.parse(body) : '');
                   }
                   else {
                     callback(err, null) ;
@@ -440,11 +422,7 @@ module.exports = function(config) {
           });
         };
 
-        var fctChunksArray = Array.apply(
-          null,
-          { length: nbChunks }).map(
-            Number.call,
-            Number);
+        var fctChunksArray = Array.apply(null, { length: nbChunks }).map(Number.call, Number);
 
         for ( var i =0 ; i < fctChunksArray.length ; i++)
           fctChunksArray[i] = fctChunks (i, chunkSize);
@@ -477,7 +455,7 @@ module.exports = function(config) {
   // Register an uploaded file
   //
   // API:
-  // POST /derivativeservice/{apiversion}/registration
+  // POST /viewingservice/{apiversion}/register
   //
   // Response:
   //
@@ -487,54 +465,14 @@ module.exports = function(config) {
 
     var promise = new Promise(function(resolve, reject) {
 
-      var registerUrl = util.format(
-        config.endPoints.register, '');
-
       request.post({
-          url: registerUrl,
+          url: config.endPoints.register,
           headers: {
             'Authorization': 'Bearer ' + _token,
-            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Type': 'application/json',
             'x-ads-force': force
           },
-          body: JSON.stringify({design: urn})
-        },
-        function (error, res, body) {
-
-          _handleResponse(error, res, body,
-            resolve,
-            reject);
-        });
-    });
-
-    return promise;
-  }
-
-  ///////////////////////////////////////////////////////////////////
-  // Use:
-  // Unregister a design file will automatically delete the manifest
-  // storage (lasting case) and corresponding derivatives.
-  //
-  // API:
-  // DELETE /derivativeservice/{apiversion}/registration
-  //
-  // Response:
-  //
-  // "{"Result":"Success"}"
-  ///////////////////////////////////////////////////////////////////
-  _self.unregister = function(urn) {
-
-    var promise = new Promise(function(resolve, reject) {
-
-      var unregisterUrl = util.format(
-        config.endPoints.unregister, urn);
-
-      request({
-          url: unregisterUrl,
-          method: 'DELETE',
-          headers: {
-            'Authorization': 'Bearer ' + _token
-          }
+          body: JSON.stringify({urn: urn})
         },
         function (error, res, body) {
 
@@ -552,9 +490,10 @@ module.exports = function(config) {
   // Get model thumbnail
   //
   // API:
-  // GET /derivativeservice/{apiversion}/thumbnails/{urn}?guid=$GUID$
-  // & width=$WIDTH$ & height=$HEIGHT$
-  // (& type=$TYPE$ & role=$ROLE$ & fileType=$FILETYPE$ & mimeType=$MIMETYPE$)
+  // GET /viewingservice/{apiversion}/thumbnails/{urn}?
+  //     guid=$GUID$ & width=$WIDTH$ & height=$HEIGHT$ (& type=$TYPE$)
+  //
+  // Response:
   //
   ///////////////////////////////////////////////////////////////////
   _self.getThumbnail = function (urn, width, height, guid) {
@@ -600,12 +539,12 @@ module.exports = function(config) {
 
   ///////////////////////////////////////////////////////////////////
   // Use:
-  // Get model manifest
+  // Get model viewable
   //
   // API:
-  // GET /derivativeservice/{apiversion}/manifest/{urn}?guid=$GUID$
-  // GET /derivativeservice/{apiversion}/manifest/{urn}/status?guid=$GUID$
-  // GET /derivativeservice/{apiversion}/manifest/{urn}/all?guid=$GUID$
+  // GET /viewingservice/{apiversion}/{urn}?guid=$GUID$
+  // GET /viewingservice/{apiversion}/{urn}/status?guid=$GUID$
+  // GET /viewingservice/{apiversion}/{urn}/all?guid=$GUID$
   //
   // Response:
   //
@@ -641,7 +580,7 @@ module.exports = function(config) {
     var promise = new Promise(function(resolve, reject) {
 
       var viewableUrl = util.format(
-        config.endPoints.manifest, urn);
+        config.endPoints.viewable, urn);
 
       var parameters = (guid ? '?guid=' + guid : '');
 
@@ -664,7 +603,7 @@ module.exports = function(config) {
           url: viewableUrl + optionStr + parameters,
           headers: {
             'Authorization': 'Bearer ' + _token,
-            'Content-Type': 'application/json; charset=utf-8'
+            'Content-Type': 'application/json'
           }
         },
         function (error, res, body) {
@@ -728,46 +667,45 @@ module.exports = function(config) {
   ///////////////////////////////////////////////////////////////////
   //
   // API:
-  // GET /derivativeservice/{apiversion}/derivatives/{urn}/
+  // GET /viewingservice/v1/items/:encodedURN
   //
   ///////////////////////////////////////////////////////////////////
-  _self.getDerivative = function(urn) {
+  _self.getItem = function(urn) {
 
     var promise = new Promise(function(resolve, reject) {
 
-        var itemUrl = util.format(
-          config.endPoints.derivatives,
-          encodeURIComponent(urn));
+      var itemUrl = util.format(
+        config.endPoints.items, urn);
 
-        request.get({
-            url: itemUrl,
-            headers: {
-              'Authorization': 'Bearer ' + _token
-            },
-            encoding: null
+      request.get({
+          url: itemUrl,
+          headers: {
+            'Authorization': 'Bearer ' + _token
           },
-          function (error, res, body) {
+          encoding: null
+        },
+        function (error, res, body) {
 
-            try {
+          try {
 
-              if (error || res.statusCode != 200) {
+            if (error || res.statusCode != 200) {
 
-                error = error || {error: res.statusMessage || 'undefined'};
+              error = error || {error: res.statusMessage || 'undefined'};
 
-                error.statusCode = res.statusCode;
+              error.statusCode = res.statusCode;
 
-                reject(error);
-              }
-              else {
-
-                resolve(body);
-              }
+              reject(error);
             }
-            catch(ex) {
+            else {
 
-              reject({error: ex});
+              resolve(body);
             }
-          });
+          }
+          catch(ex) {
+
+            reject({error: ex});
+          }
+        });
     });
 
     return promise;
@@ -892,7 +830,7 @@ module.exports = function(config) {
               },
               function(items, callback) {
 
-                downloadDerivatives(items, directory, 10, callback);
+                downloadItems(items, directory, 10, callback);
               },
               function (items, callback) {
 
@@ -900,7 +838,7 @@ module.exports = function(config) {
               },
               function (uris, callback) {
 
-                downloadDerivatives(uris, directory, 10, callback);
+                downloadItems(uris, directory, 10, callback);
               }
             ],
             function (wfError, items) {
@@ -948,12 +886,13 @@ module.exports = function(config) {
               });
           }
 
-          var items = getUrnsRec(viewable);
+          var items = getUrnRec(viewable);
 
-          // filters out root urn
-          items = items.filter(function(item){
-            return item !== urn;
-          });
+          //removes model urn
+          while(items[0] === urn) {
+
+            items.shift();
+          }
 
           var views = getViewsRec(viewable, viewable, directory);
 
@@ -983,10 +922,10 @@ module.exports = function(config) {
   }
 
   ////////////////////////////////////////////////////////////////////////
-  // Download all derivatives to target directory
+  // Download all items to target directory
   //
   ////////////////////////////////////////////////////////////////////////
-  function downloadDerivatives(items, directory, maxWorkers, callback) {
+  function downloadItems(items, directory, maxWorkers, callback) {
 
     //Download each item asynchronously
     async.mapLimit (items, maxWorkers,
@@ -998,7 +937,7 @@ module.exports = function(config) {
         }
         else {
 
-          downloadDerivative(item, directory, mapCallback);
+          downloadItem(item, directory, mapCallback);
         }
       },
       //All tasks are done
@@ -1021,21 +960,21 @@ module.exports = function(config) {
   // Grab all urn's from viewable recursively
   //
   ////////////////////////////////////////////////////////////////////////
-  function getUrnsRec(item) {
+  function getUrnRec(item) {
 
-    var urns = [];
+    var urn =[];
 
-    if (item.urn !== undefined)
-      urns.push(item.urn);
+    if (item.urn !== undefined )
+      urn.push(item.urn);
 
     if(item.children !== undefined) {
 
       for(var key in item.children)
-        urns = urns.concat(getUrnsRec(
+        urn = urn.concat(getUrnRec(
           item.children[key]));
     }
 
-    return urns;
+    return urn;
   }
 
   ////////////////////////////////////////////////////////////////////////
@@ -1075,12 +1014,12 @@ module.exports = function(config) {
   }
 
   ////////////////////////////////////////////////////////////////////////
-  // Download derivative to target directory
+  // Download item to target directory
   //
   ////////////////////////////////////////////////////////////////////////
-  function downloadDerivative(item, directory, callback) {
+  function downloadItem(item, directory, callback) {
 
-    _self.getDerivative(item).then(
+    _self.getItem(item).then(
 
       function(data) {
 
@@ -1115,7 +1054,7 @@ module.exports = function(config) {
 
       function(error) {
 
-        console.log('Download failed: ' + item);
+        console.log('Item Download failed: ' + item);
         console.log(error);
 
         var fullFileName = path.join(directory,
@@ -1297,7 +1236,7 @@ module.exports = function(config) {
 
       uris = uris.filter(function(uri) {
 
-        return uri.indexOf('urn:') == 0;
+        return uri.startsWith('urn:');
       });
 
       callback(null, uris);
@@ -1329,7 +1268,7 @@ module.exports = function(config) {
 
         uris = uris.filter(function(uri) {
 
-          return uri.indexOf('urn:') == 0;
+          return uri.startsWith('urn:');
         });
 
         callback(null, uris);

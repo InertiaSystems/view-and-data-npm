@@ -19,13 +19,28 @@ var should = require('chai').should(),
   Lmv = require('../view-and-data'),
   path = require('path');
 
-var testConfig = {
-  useResumableUpload: false,
-  bucketKey: 'adn-bucket-npm' //change that bucket name to your own
-}
+//only fill up requested fields, other fields are defaulted
+var config = {
 
-//only fill up credentials & bucket fields, other fields are defaulted
-var config = require('../config-view-and-data');
+  // change that bucket name
+  defaultBucketKey: 'leefsmp-forge-transient',
+
+  // change that to your own keys or system variables
+  credentials: {
+
+    clientId: process.env.FORGE_CLIENTID,
+    clientSecret: process.env.FORGE_CLIENTSECRET
+  },
+
+  // see: https://developer.autodesk.com/en/docs/oauth/v2/overview/scopes
+  scope: [
+    'data:read',
+    'data:create',
+    'data:write',
+    'bucket:read',
+    'bucket:create'
+  ]
+}
 
 describe('# View & Data Tests: ', function() {
 
@@ -35,6 +50,8 @@ describe('# View & Data Tests: ', function() {
   ///////////////////////////////////////////////////////////////////
   it('Get token', function(done) {
 
+    console.log('\n\n----------- TEST 1 -----------')
+
     //set a 15'' timeout
     this.timeout(15 * 1000);
 
@@ -42,8 +59,8 @@ describe('# View & Data Tests: ', function() {
 
     lmv.getToken().then(function(response) {
 
-      console.log('Token Response:');
-      console.log(response);
+      console.log('Token Response:')
+      console.log(response)
 
       done();
 
@@ -60,11 +77,15 @@ describe('# View & Data Tests: ', function() {
   ///////////////////////////////////////////////////////////////////
   it('Get bucket (create if does not exist)', function(done) {
 
+    console.log('\n\n----------- TEST 2 -----------')
+
     this.timeout(15 * 1000);
 
-    var lmv = new Lmv();
+    var lmv = new Lmv(config);
 
     function onError(error) {
+
+      console.log(error)
       done(error);
     }
 
@@ -73,12 +94,12 @@ describe('# View & Data Tests: ', function() {
       var createIfNotExists = true;
 
       var bucketCreationData = {
-        bucketKey: testConfig.bucketKey,
+        bucketKey: config.defaultBucketKey,
         servicesAllowed: [],
-        policyKey: "transient"
+        policy: "transient"
       };
 
-      lmv.getBucket(testConfig.bucketKey,
+      lmv.getBucket(config.defaultBucketKey,
         createIfNotExists,
         bucketCreationData).then(
         onBucketCreated,
@@ -87,37 +108,7 @@ describe('# View & Data Tests: ', function() {
 
     function onBucketCreated(response) {
 
-      done();
-    }
-
-    lmv.initialize().then(onInitialized, onError);
-  });
-
-  ///////////////////////////////////////////////////////////////////
-  //
-  //
-  ///////////////////////////////////////////////////////////////////
-  it('List buckets', function(done) {
-
-    this.timeout(15 * 1000);
-
-    var lmv = new Lmv();
-
-    function onError(error) {
-      done(error);
-    }
-
-    function onInitialized(response) {
-
-      lmv.listBuckets().then(
-        onBucketList,
-        onError);
-    }
-
-    function onBucketList(response) {
-
-      console.log(response);
-
+      console.log(response)
       done();
     }
 
@@ -132,12 +123,15 @@ describe('# View & Data Tests: ', function() {
 
   it('Full workflow (bucket/upload/registration/translation/thumbnail)', function(done) {
 
+    console.log('\n\n----------- TEST 3 -----------')
+
     this.timeout(5 * 60 * 1000); //5 mins timeout
 
-    var lmv = new Lmv();
+    var lmv = new Lmv(config);
 
     function onError(error) {
 
+      console.log(error)
       done(error);
     }
 
@@ -146,12 +140,12 @@ describe('# View & Data Tests: ', function() {
       var createIfNotExists = true;
 
       var bucketCreationData = {
-        bucketKey: testConfig.bucketKey,
+        bucketKey: config.defaultBucketKey,
         servicesAllowed: [],
-        policyKey: "transient"
+        policy: "transient"
       };
 
-      lmv.getBucket(testConfig.bucketKey,
+      lmv.getBucket(config.defaultBucketKey,
         createIfNotExists,
         bucketCreationData).then(
           onBucketCreated,
@@ -160,25 +154,20 @@ describe('# View & Data Tests: ', function() {
 
     function onBucketCreated(response) {
 
-      if(testConfig.useResumableUpload){
+      //lmv.upload(
+      //  path.join(__dirname, './data/test.dwf'),
+      //  config.defaultBucketKey,
+      //  'test.dwf').then(onUploadCompleted, onError);
 
-        lmv.resumableUpload(
-          path.join(__dirname, './data/test.dwf'),
-          testConfig.bucketKey,
-          'test.dwf').then(onResumableUploadCompleted, onError);
-      }
-      else {
-
-        lmv.upload(
-          path.join(__dirname, './data/test.dwf'),
-          testConfig.bucketKey,
-          'test.dwf').then(onUploadCompleted, onError);
-      }
+      lmv.resumableUpload(
+        path.join(__dirname, './data/test.dwf'),
+        config.defaultBucketKey,
+        'test.dwf').then(onResumableUploadCompleted, onError);
     }
 
     function onUploadCompleted(response) {
 
-      var fileId = response.objectId;
+      var fileId = response.objects[0].id;
 
       urn = lmv.toBase64(fileId);
 
@@ -212,9 +201,6 @@ describe('# View & Data Tests: ', function() {
             onError);
       }
       else {
-
-        console.log('reg error')
-
         done(response);
       }
     }
@@ -233,6 +219,7 @@ describe('# View & Data Tests: ', function() {
 
     function onThumbnail(response) {
 
+      console.log('Thumbnail Size: ' + response.length);
       done();
     }
 
@@ -246,11 +233,15 @@ describe('# View & Data Tests: ', function() {
   ///////////////////////////////////////////////////////////////////
   it('Download Model Data', function(done) {
 
+    console.log('\n\n----------- TEST 4 -----------')
+
     this.timeout(5 * 60 * 1000); //5 mins timeout
 
-    var lmv = new Lmv();
+    var lmv = new Lmv(config);
 
     function onError(error) {
+
+      console.log(error)
       done(error);
     }
 
@@ -290,37 +281,6 @@ describe('# View & Data Tests: ', function() {
     }
 
     //start the test
-    lmv.initialize().then(onInitialized, onError);
-  });
-
-  ///////////////////////////////////////////////////////////////////
-  //
-  //
-  ///////////////////////////////////////////////////////////////////
-  it('Unregister model', function(done) {
-
-    this.timeout(15 * 1000);
-
-    var lmv = new Lmv();
-
-    function onError(error) {
-      done(error);
-    }
-
-    function onInitialized(response) {
-
-      lmv.unregister(urn).then(
-        onUnregistered,
-        onError);
-    }
-
-    function onUnregistered(response) {
-
-      console.log(response);
-
-      done();
-    }
-
     lmv.initialize().then(onInitialized, onError);
   });
 });

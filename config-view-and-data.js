@@ -16,7 +16,7 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 var BASE_URL = 'https://developer.api.autodesk.com';
-var VERSION = 'v2';
+var VERSION = 'v1';
 
 module.exports = {
 
@@ -31,25 +31,29 @@ module.exports = {
   // http://developer.autodesk.com
   credentials: {
 
-    ConsumerKey: process.env.LMV_CONSUMERKEY,
-    ConsumerSecret: process.env.LMV_CONSUMERSECRET
+    clientId: process.env.FORGE_CLIENTID,
+    clientSecret: process.env.FORGE_CLIENTSECRET
   },
+
+  // data:read scope only allow to load models
+  // request more scopes for other operations
+  // see: https://developer.autodesk.com/en/docs/oauth/v2/overview/scopes
+  scope: [
+    'data:read'
+  ],
 
   // API EndPoints
   endPoints:{
 
-    authenticate:     BASE_URL + '/authentication/v1/authenticate',
+    authenticate:     BASE_URL + '/authentication/' + VERSION + '/authenticate',
     getBucket:        BASE_URL + '/oss/' + VERSION + '/buckets/%s/details',
     createBucket:     BASE_URL + '/oss/' + VERSION + '/buckets',
-    listBuckets:      BASE_URL + '/oss/' + VERSION + '/buckets?%s',
     upload:           BASE_URL + '/oss/' + VERSION + '/buckets/%s/objects/%s',
     resumableUpload:  BASE_URL + '/oss/' + VERSION + '/buckets/%s/objects/%s/resumable',
-    supported:        BASE_URL + '/derivativeservice/' + VERSION + '/supported',
-    register:         BASE_URL + '/derivativeservice/' + VERSION + '/registration',
-    unregister:       BASE_URL + '/derivativeservice/' + VERSION + '/registration/%s',
-    thumbnail:        BASE_URL + '/derivativeservice/' + VERSION + '/thumbnails/%s',
-    manifest:         BASE_URL + '/derivativeservice/' + VERSION + '/manifest/%s',
-    derivatives:      BASE_URL + '/derivativeservice/' + VERSION + '/derivatives/%s',
-    viewers:          BASE_URL + '/viewingservice/'    + VERSION + '/viewers'
+    supported:        BASE_URL + '/viewingservice/' + VERSION + '/supported',
+    register:         BASE_URL + '/viewingservice/' + VERSION + '/register',
+    thumbnail:        BASE_URL + '/viewingservice/' + VERSION + '/thumbnails/%s',
+    viewable:         BASE_URL + '/viewingservice/' + VERSION + '/%s',
+    items:            BASE_URL + '/viewingservice/' + VERSION + '/items/%s'
   }
 }

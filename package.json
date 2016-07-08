@@ -1,10 +1,10 @@
 {
   "name": "view-and-data",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "The official npm package for Autodesk View and Data API",
   "main": "view-and-data.js",
   "scripts": {
-    "test": "make test"
+    "test": "mocha -R list"
   },
   "repository": {
     "type": "git",
