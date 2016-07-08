@@ -1,5 +1,9 @@
 # Autodesk View and Data API NPM Package
 
+## Important
+**Do not upgrade to v 2.0.0 if you are not an Autodesk Employee**: the v2 API is not yet fully exposed for accounts outside of @autodesk.com. You will not be able to perform design registration if your account is not an Autodesk one.
+
+You can safely use the latest v1 version in your project: reference 1.0.7 in your package.json
 
 ## Description
 
@@ -26,7 +30,7 @@ An [NPM](https://www.npmjs.com) package for [Autodesk View & Data API](https://d
 
 This test will upload a sample file (/test/data/test.dwf) and translate, then show the URN. 
 
-Make sure to set up your consumer key and secret and the default bucket name in `config-view-and-data.js` as described above (the test will look for this config file!), then run the following commands in the `node_modules/view-and-data/` folder:
+Make sure to set up your consumer key and secret and the default bucket name in `config-view-and-data.js` as described above (the test will look for this config file!), Change the bucket name to a bucket you actually own in `test/test.js`, then run the following commands in the `node_modules/view-and-data/` folder:
 
     $ npm install
     $ npm test
@@ -136,7 +140,7 @@ the translation is successful.
       }
 
       //start the test
-      lmv.initialise().then(onInitialized, onError);
+      lmv.initialize().then(onInitialized, onError);
 ```
 
 ## Offline
